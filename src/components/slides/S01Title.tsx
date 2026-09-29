@@ -4,7 +4,6 @@ import { motion } from "motion/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { LuChevronsDown, LuGraduationCap, LuMic, LuSmartphone } from "react-icons/lu";
-import { ClosedOverlay } from "../deck/ClosedOverlay";
 import { useRoom } from "../deck/RoomProvider";
 import { Slide } from "../deck/Slide";
 import { Reveal, ease } from "../deck/ui";
@@ -158,9 +157,8 @@ function JoinBadge() {
   const online = state?.devices.filter((d) => d.online).length ?? 0;
   return (
     <Reveal delay={1} className="flex items-center gap-5 rounded-2xl border-2 border-line bg-card/80 p-4 pr-6">
-      <div className="relative rounded-xl bg-white p-2 text-[0.9rem]">
+      <div className="rounded-xl bg-white p-2">
         {joinUrl ? <QRCodeSVG value={joinUrl} size={112} level="M" /> : <div className="size-[112px]" />}
-        <ClosedOverlay />
       </div>
       <div>
         <div className="flex items-center gap-2 font-display text-[1.35rem] font-bold">
