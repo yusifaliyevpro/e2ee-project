@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   typedRoutes: true,
   partialPrefetching: true,
+  // Keep the dev badge off the projector while rehearsing with `pnpm dev`
+  devIndicators: false,
   experimental: {
     useOffline: true,
     useTypeScriptCli: true,
@@ -13,11 +15,6 @@ const nextConfig: NextConfig = {
   images: {
     qualities: [75, 100],
     minimumCacheTTL: 2592000, // 30 days
-    remotePatterns: [
-      { hostname: "avatars.githubusercontent.com" },
-      { hostname: "opengraph.githubassets.com" },
-      { hostname: "raw.githubusercontent.com" },
-    ],
   },
 };
 

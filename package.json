@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "next start",
     "check": "greenly",
     "fmt": "oxfmt",
@@ -13,9 +13,14 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
     "@tailwindcss/typography": "0.5.20",
+    "@upstash/redis": "1.39.0",
     "motion": "13.4.4",
     "next": "16.3.6",
+    "qrcode.react": "4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-icons": "5.7.0",

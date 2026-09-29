@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Light: high contrast for bright rooms / washed-out projectors */
+:root,
+[data-theme="light"] {
+  --bg: #f5f7fb;
+  --bg-2: #e9edf5;
+  --card: #ffffff;
+  --line: #c3cbdc;
+  --fg: #060b18;
+  --muted: #334058;
+  --accent: #0b6e8f;
+  --iris: #5b21b6;
+  --good: #137a37;
+  --warn: #a14a05;
+  --bad: #b3123a;
+  --gold: #946000;
+  --grid: rgb(15 23 42 / 0.07);
+  --glow-a: rgb(14 116 144 / 0.16);
+  --glow-b: rgb(109 40 217 / 0.12);
+  color-scheme: light;
+}
+
+/* Dark: deep navy + neon accents for dim rooms */
+[data-theme="dark"] {
+  --bg: #050914;
+  --bg-2: #0b1222;
+  --card: #0e1628;
+  --line: #2a3857;
+  --fg: #f3f6fc;
+  --muted: #b6c2d9;
+  --accent: #22d3ee;
+  --iris: #b197fc;
+  --good: #4ade80;
+  --warn: #fbbf24;
+  --bad: #fb7185;
+  --gold: #facc15;
+  --grid: rgb(148 163 184 / 0.075);
+  --glow-a: rgb(34 211 238 / 0.14);
+  --glow-b: rgb(167 139 250 / 0.13);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-iris: var(--iris);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-gold: var(--gold);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-ipa: var(--font-charis), "Segoe UI", "Lucida Sans Unicode", Arial, sans-serif;
+}
+
+/* The deck scales like a slide: 1rem ≈ 20px on a 1080p projector */
+html:has([data-deck]) {
+  font-size: clamp(11px, min(1.04vw, 1.85vh), 36px);
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+}
+
+html:has([data-deck])::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 3.2rem 3.2rem;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.glitch-mask {
+  mask-image: linear-gradient(to bottom, black 70%, transparent);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.caret::after {
+  content: "▋";
+  margin-left: 0.1em;
+  color: var(--accent);
+  animation: blink 1s steps(1) infinite;
+}
