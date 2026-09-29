@@ -3,10 +3,11 @@
 import { x25519 } from "@noble/curves/ed25519.js";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { LuBookOpen, LuInbox, LuMoon, LuShieldAlert, LuShieldCheck, LuSun, LuVote } from "react-icons/lu";
+import { LuBookOpen, LuDoorClosed, LuInbox, LuMoon, LuShieldAlert, LuShieldCheck, LuSun, LuVote } from "react-icons/lu";
 import { fromB64, fromHex, toB64, toHex } from "@/lib/bytes";
 import { cn } from "@/lib/cn";
 import { type KeyPair, type OpenResult, open, safetyNumber } from "@/lib/e2ee";
+import { createLocalStore, useLocalStore } from "@/lib/local-store";
 import { avatarColor } from "@/lib/reactions";
 import type { DeliveredMessage, Device, InboxResponse } from "@/lib/room-types";
 import { toggleTheme, useTheme } from "@/lib/theme";
@@ -27,6 +28,13 @@ export type Received = {
 
 const STORE_KEY = "e2ee:device";
 const PIN_KEY = "e2ee:pinned-sender";
+
+type HistoryItem = { id: string; text: string; at: number };
+
+// Kept on the phone so a refresh shows what it already decrypted instead of fetching it again
+const historyStore = createLocalStore<HistoryItem[]>("e2ee:history", []);
+// Presenter's reaction key, stored only after it arrived in a message whose signature checked out
+const replyKeyStore = createLocalStore<string | null>("e2ee:reply-key", null);
 
 function loadKeys(): { keys: KeyPair; id: string | null } {
   try {
@@ -79,22 +87,22 @@ export function AudienceApp() {
   const theme = useTheme();
   const [me, setMe] = useState<Device | null>(null);
   const fingerprint = useFingerprint() ?? [];
-  const [conn, setConn] = useState<"connecting" | "online" | "offline">("connecting");
+  const [conn, setConn] = useState<"connecting" | "online" | "offline" | "closed">("connecting");
   const [current, setCurrent] = useState<Received | null>(null);
-  const [history, setHistory] = useState<{ id: string; text: string; at: number }[]>([]);
+  const history = useLocalStore(historyStore);
+  const replyKey = useLocalStore(replyKeyStore);
   const [missed, setMissed] = useState(false);
   const [poll, setPoll] = useState<Inbox["poll"]>(null);
   const [tab, setTab] = useState<"inbox" | "glossary">("inbox");
-  // Presenter's reaction key, taken only from a message whose signature checked out
-  const [replyKey, setReplyKey] = useState<string | null>(null);
   const keysRef = useRef<KeyPair | null>(null);
   const idRef = useRef<string | null>(null);
   const lastMsg = useRef<string | null>(null);
   const registered = useRef(false);
 
-  const joining = useRef<Promise<void> | null>(null);
+  const joining = useRef<Promise<boolean> | null>(null);
 
-  // Deduplicated: overlapping polls (or StrictMode's double effect) must not register twice
+  // Deduplicated: overlapping polls (or StrictMode's double effect) must not register twice.
+  // Resolves false while the presenter has joining closed.
   const register = useCallback(() => {
     joining.current ??= (async () => {
       const keys = keysRef.current!;
@@ -102,12 +110,17 @@ export function AudienceApp() {
         method: "POST",
         body: JSON.stringify({ publicKey: toB64(keys.publicKey), id: idRef.current }),
       });
+      if (res.status === 403) {
+        setConn("closed");
+        return false;
+      }
       if (!res.ok) throw new Error(`join failed ${res.status}`);
       const device = (await res.json()) as Device;
       idRef.current = device.id;
       registered.current = true;
       saveKeys(keys, device.id);
       setMe(device);
+      return true;
     })().finally(() => {
       joining.current = null;
     });
@@ -142,7 +155,11 @@ export function AudienceApp() {
     const loop = async () => {
       let delay = 1200;
       try {
-        if (!registered.current) await register();
+        if (!registered.current && !(await register())) {
+          // Room closed: ask again shortly, and join the moment the presenter opens it
+          if (alive) timer = setTimeout(loop, 3000);
+          return;
+        }
         const params = new URLSearchParams({ id: idRef.current! });
         if (lastMsg.current) params.set("after", lastMsg.current);
         const res = await fetch(`/api/room/inbox?${params}`, { cache: "no-store" });
@@ -156,6 +173,8 @@ export function AudienceApp() {
           setPoll(data.poll);
           if (data.message && data.message.id !== lastMsg.current) handleMessage(data.message);
           else if (data.missed && data.missed !== lastMsg.current) setMissed(true);
+          // The server has settled this message for us (delivered, not ours, or too old): stop re-checking it
+          if (!data.message && data.cursor) lastMsg.current = data.cursor;
         }
       } catch {
         setConn("offline");
@@ -189,12 +208,15 @@ export function AudienceApp() {
 
   const onRevealed = useCallback((r: Received) => {
     if (!r.result || !idRef.current) return;
-    if (r.result.signatureValid) setReplyKey(r.msg.rpk);
-    setHistory((h) =>
-      h.some((x) => x.id === r.msg.id) ? h : [{ id: r.msg.id, text: r.result!.plaintext, at: Date.now() }, ...h],
+    const plaintext = r.result.plaintext;
+    if (r.result.signatureValid) replyKeyStore.set(() => r.msg.rpk);
+    historyStore.set((h) =>
+      h.some((x) => x.id === r.msg.id) ? h : [{ id: r.msg.id, text: plaintext, at: Date.now() }, ...h].slice(0, 20),
     );
     void fetch("/api/room/ack", { method: "POST", body: JSON.stringify({ id: idRef.current, messageId: r.msg.id }) });
   }, []);
+
+  const earlier = history.filter((h) => h.id !== current?.msg.id);
 
   return (
     <div className="flex min-h-svh flex-col bg-bg text-fg">
@@ -206,19 +228,29 @@ export function AudienceApp() {
           {me?.emoji ?? "…"}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-bold">{me?.alias ?? "Generating keys…"}</div>
+          <div className="truncate font-bold">
+            {me?.alias ?? (conn === "closed" ? "Not in the room yet" : "Generating keys…")}
+          </div>
           <div className="flex items-center gap-1.5 text-xs text-muted">
             <span
               className={cn(
                 "size-2 rounded-full",
-                conn === "online" ? "bg-good" : conn === "offline" ? "bg-bad" : "animate-pulse bg-warn",
+                conn === "online"
+                  ? "bg-good"
+                  : conn === "offline"
+                    ? "bg-bad"
+                    : conn === "closed"
+                      ? "bg-warn"
+                      : "animate-pulse bg-warn",
               )}
             />
             {conn === "online"
               ? "Connected · end-to-end encrypted"
               : conn === "offline"
                 ? "Reconnecting…"
-                : "Connecting…"}
+                : conn === "closed"
+                  ? "Room closed · you'll join automatically"
+                  : "Connecting…"}
           </div>
         </div>
         <button
@@ -237,23 +269,25 @@ export function AudienceApp() {
             <AnimatePresence mode="wait">
               {current ? (
                 <Receive key={current.msg.id} received={current} onRevealed={onRevealed} />
+              ) : !me && conn === "closed" ? (
+                <Closed key="closed" />
               ) : (
-                <Waiting key="waiting" fingerprint={fingerprint} />
+                <Waiting key="waiting" fingerprint={fingerprint} again={history.length > 0} />
               )}
             </AnimatePresence>
 
             {missed && (
               <div className="mt-4 rounded-2xl border-2 border-warn/60 bg-warn/10 p-3 text-sm text-warn">
-                A message was sent before your phone joined. It was locked only for the phones present at that moment —
-                so you <b>can't</b> read it. That's E2EE working! Wait for the next one.
+                A message was sent just before your phone joined. It was locked only for the phones already in the room
+                — so you <b>can't</b> read it. That's E2EE working! Wait for the next one.
               </div>
             )}
 
-            {history.length > 1 && (
+            {earlier.length > 0 && (
               <section className="mt-6">
                 <h3 className="mb-2 text-xs font-bold tracking-widest text-muted uppercase">Earlier messages</h3>
                 <ul className="space-y-2">
-                  {history.slice(1).map((m) => (
+                  {earlier.map((m) => (
                     <li key={m.id} className="rounded-xl border border-line bg-card px-3 py-2 text-sm">
                       {m.text}
                     </li>
@@ -318,7 +352,26 @@ function TabButton({
   );
 }
 
-function Waiting({ fingerprint }: { fingerprint: string[] }) {
+function Closed() {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="flex flex-1 flex-col items-center justify-center text-center"
+    >
+      <div className="grid size-24 place-items-center rounded-full border-2 border-warn/60 bg-warn/10 text-5xl text-warn">
+        <LuDoorClosed />
+      </div>
+      <h1 className="mt-6 text-2xl font-bold">The room is closed right now</h1>
+      <p className="mt-2 max-w-xs text-[0.95rem] text-muted">
+        Yusif opens it during the presentation. Keep this page open — you'll join automatically.
+      </p>
+    </motion.div>
+  );
+}
+
+function Waiting({ fingerprint, again }: { fingerprint: string[]; again: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -347,10 +400,12 @@ function Waiting({ fingerprint }: { fingerprint: string[] }) {
           <LuShieldCheck />
         </div>
       </div>
-      <h1 className="mt-6 text-2xl font-bold">Waiting for Yusif's message…</h1>
+      <h1 className="mt-6 text-2xl font-bold">
+        {again ? "Waiting for the next message…" : "Waiting for Yusif's message…"}
+      </h1>
       <p className="mt-2 max-w-xs text-[0.95rem] text-muted">
-        Your phone just generated its own <b className="text-fg">private key</b>. It never leaves this device — not even
-        the server has it.
+        {again ? "Your" : "Your phone just generated its own"} <b className="text-fg">private key</b>{" "}
+        {again ? "is still on this phone" : "and it never leaves this device"} — not even the server has it.
       </p>
       <div className="mt-6 rounded-2xl border border-line bg-card px-4 py-3">
         <div className="text-[0.7rem] font-bold tracking-widest text-muted uppercase">Your key fingerprint</div>

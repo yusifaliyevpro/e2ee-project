@@ -22,17 +22,19 @@ Open http://localhost:3000 and log in. The presenter password is `PRESENTER_PASS
 | `T`                            | toggle light / dark theme (test both on the projector) |
 | `F`                            | fullscreen                                             |
 | `R`                            | hide / show live reactions                             |
+| `J`                            | open / close joining (same as the header button)       |
 
 Presentation clickers work too (they send PageUp/PageDown). The mouse wheel snaps slide by slide.
 
 **Live demo checklist**
 
+1. Joining starts **closed** (so bots and early visitors can't get in). When you want people to scan, press **J** or the "Joining closed" button in the header; it closes itself again after 4 hours. Phones that scanned early wait on a "room is closed" screen and join automatically when you open it. Phones already in the room keep working when you close it.
 1. Before class, open the live demo slide and press **reset** (bottom right of "What the server stored").
-2. Leave the title slide up while people sit down: its QR code lets them join early.
-3. On the demo slide, pick or type a message and press **Encrypt & send**. Phones show the envelope, the ciphertext, the decryption steps and the plaintext; avatars on the projector get a ✓ as each phone decrypts.
-4. Once a phone has decrypted the message, a reaction bar appears on it. Reactions are encrypted to your browser and float up from the bottom-right of the projector on every slide (press `R` to hide them).
-5. On the safety-numbers slide, ask people to compare the number under the message on their phone with the one on screen.
-6. On the "backdoor" slide, press **Start poll** and the phones vote live.
+1. Leave the title slide up while people sit down: its QR code lets them join early.
+1. On the demo slide, pick or type a message and press **Encrypt & send**. Phones show the envelope, the ciphertext, the decryption steps and the plaintext; avatars on the projector get a ✓ as each phone decrypts.
+1. Once a phone has decrypted the message, a reaction bar appears on it. Reactions are encrypted to your browser and float up from the bottom-right of the projector on every slide (press `R` to hide them).
+1. On the safety-numbers slide, ask people to compare the number under the message on their phone with the one on screen.
+1. On the "backdoor" slide, press **Start poll** and the phones vote live.
 
 ## Getting phones connected
 

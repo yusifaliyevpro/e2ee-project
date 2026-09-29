@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize, LuMoon, LuSun } from "react-icons/lu";
 import { cn } from "@/lib/cn";
 import { toggleTheme, useTheme } from "@/lib/theme";
+import { JoinToggle } from "./JoinToggle";
 import { ReactionsOverlay } from "./ReactionsOverlay";
 import { RoomProvider } from "./RoomProvider";
 
@@ -174,6 +175,7 @@ function Hud() {
       />
 
       <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <JoinToggle />
         <HudButton label={theme === "dark" ? "Light mode (T)" : "Dark mode (T)"} onClick={toggleTheme}>
           {theme === "dark" ? <LuSun /> : <LuMoon />}
         </HudButton>

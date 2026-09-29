@@ -44,8 +44,10 @@ export type InboxResponse =
   | {
       status: "ok";
       message: DeliveredMessage | null;
-      /** a newer message exists, but it was sealed before this device joined */
+      /** a message was just sent, but not locked for this device (it joined afterwards) */
       missed: string | null;
+      /** latest message id the server has settled for this device; sent back as `after` */
+      cursor: string | null;
       poll: (Poll & { myVote: number | null }) | null;
     };
 
@@ -60,5 +62,7 @@ export type PresenterState = {
   /** reactions newer than the `rx` cursor the presenter sent */
   reactions: StoredReaction[];
   reactionSeq: number;
+  /** whether new phones may join right now */
+  joining: boolean;
   backend: "memory" | "redis";
 };

@@ -8,6 +8,7 @@ import {
   registerDevice,
   requirePresenter,
   sendMessage,
+  setJoining,
   updatePoll,
   vote,
 } from "@/lib/room-service";
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   if (denied) return denied;
   if (action === "send") return sendMessage(request);
   if (action === "poll") return updatePoll(request);
+  if (action === "joining") return setJoining(request);
   if (action === "reset") {
     await room().reset();
     return json({ ok: true });

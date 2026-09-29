@@ -16,6 +16,9 @@ import type {
 const ONLINE_MS = 15_000;
 const MAX_DEVICES = 500;
 const MAX_CIPHERTEXT_BYTES = 2048;
+/** Phones seen this recently are "in the room" (backgrounded ones included); older ones are rehearsal leftovers */
+const ROOM_WINDOW_MS = 60 * 60_000;
+const MISSED_NOTICE_MS = 90_000;
 
 export const noStore = { "cache-control": "no-store" };
 
@@ -57,6 +60,8 @@ export async function registerDevice(request: Request) {
     // Re-join after a reset (or a stale replica read): reuse the id so the phone isn't counted twice
     if (!existing) id = body.id;
   }
+  // Phones already in the room keep working; only brand-new joins are gated
+  if (!(await store.joining())) return json({ error: "closed" }, 403);
   if ((await store.deviceCount()) >= MAX_DEVICES) return json({ error: "room is full" }, 429);
 
   id ??= crypto.randomUUID();
@@ -79,9 +84,15 @@ export async function inbox(request: NextRequest) {
   let message: DeliveredMessage | null = null;
   let missed: string | null = null;
   if (latest && latest !== after) {
-    const [m, wrap] = await Promise.all([store.message(latest), store.wrapFor(latest, id)]);
-    if (m && wrap) message = { ...m, wrap };
-    else if (m) missed = m.id;
+    const [m, wrap, acked] = await Promise.all([
+      store.message(latest),
+      store.wrapFor(latest, id),
+      store.hasAcked(latest, id),
+    ]);
+    // Deliver once: only to phones it was sealed for (joined before the send), and only until they confirm.
+    // A phone that joins later has no wrap, so it can never get an older message.
+    if (m && wrap && !acked) message = { ...m, wrap };
+    else if (m && !wrap && Date.now() - m.createdAt < MISSED_NOTICE_MS) missed = m.id;
   }
 
   let pollView: Extract<InboxResponse, { status: "ok" }>["poll"] = null;
@@ -90,7 +101,7 @@ export async function inbox(request: NextRequest) {
     pollView = { ...poll, myVote: votes[id] ?? null };
   }
 
-  return json({ status: "ok", message, missed, poll: pollView } satisfies InboxResponse);
+  return json({ status: "ok", message, missed, cursor: latest, poll: pollView } satisfies InboxResponse);
 }
 
 export async function ack(request: Request) {
@@ -172,12 +183,13 @@ export async function react(request: Request) {
 /** `reactionsAfter` is the presenter's cursor; null means "just tell me where the stream is". */
 export async function presenterState(reactionsAfter: number | null): Promise<PresenterState> {
   const store = room();
-  const [devices, seen, latestId, poll, reactionSeq] = await Promise.all([
+  const [devices, seen, latestId, poll, reactionSeq, joining] = await Promise.all([
     store.devices(),
     store.lastSeen(),
     store.latestId(),
     store.poll(),
     store.reactionSeq(),
+    store.joining(),
   ]);
   const reactions =
     reactionsAfter !== null && reactionSeq > reactionsAfter ? await store.reactionsSince(reactionsAfter) : [];
@@ -204,6 +216,7 @@ export async function presenterState(reactionsAfter: number | null): Promise<Pre
 
   return {
     devices: devices
+      .filter((d) => now - (seen[d.id] ?? 0) < ROOM_WINDOW_MS)
       .map((d) => ({ ...d, online: now - (seen[d.id] ?? 0) < ONLINE_MS }))
       .toSorted((a, b) => a.joinedAt - b.joinedAt),
     latest,
@@ -211,8 +224,16 @@ export async function presenterState(reactionsAfter: number | null): Promise<Pre
     poll: pollView,
     reactions,
     reactionSeq,
+    joining,
     backend: store.kind,
   };
+}
+
+export async function setJoining(request: Request) {
+  const body = await readJson(request);
+  if (typeof body?.open !== "boolean") return json({ error: "bad request" }, 400);
+  await room().setJoining(body.open);
+  return json({ joining: body.open });
 }
 
 export async function updatePoll(request: Request) {

@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { seal } from "@/lib/e2ee";
 import { avatarColor } from "@/lib/reactions";
 import type { DeviceView, PresenterState } from "@/lib/room-types";
+import { ClosedOverlay } from "../deck/ClosedOverlay";
 import { useRoom } from "../deck/RoomProvider";
 import { Slide } from "../deck/Slide";
 import { Eyebrow, Hl, Reveal, ease } from "../deck/ui";
@@ -52,6 +53,9 @@ export function S09LiveDemo() {
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const devices = state?.devices ?? [];
+  // Everyone in the room gets a key, even if their browser is in the background right now.
+  // Phones that join after the send get nothing: the message was never locked for them.
+  const online = devices.filter((d) => d.online);
   const busy = phase !== "idle" && phase !== "sent" && phase !== "error";
 
   const send = () => {
@@ -108,12 +112,13 @@ export function S09LiveDemo() {
           </Reveal>
 
           <Reveal delay={0.12} className="mt-5 flex items-center gap-5 rounded-3xl border-2 border-line bg-card/80 p-4">
-            <div className="shrink-0 rounded-2xl bg-white p-2.5">
+            <div className="relative shrink-0 rounded-2xl bg-white p-2.5 text-[1.4rem]">
               {joinUrl ? (
                 <QRCodeSVG value={joinUrl} size={230} level="M" className="size-[13rem]" />
               ) : (
                 <div className="size-[13rem]" />
               )}
+              <ClosedOverlay />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 font-display text-[1.3rem] font-bold">
@@ -131,7 +136,10 @@ export function S09LiveDemo() {
           <Reveal delay={0.2} className="mt-5 flex min-h-0 flex-1 flex-col">
             <div className="flex items-baseline justify-between">
               <span className="font-display text-[1.25rem] font-bold">
-                {devices.length} phone{devices.length === 1 ? "" : "s"} joined
+                {devices.length} phone{devices.length === 1 ? "" : "s"} in the room
+                {devices.length > online.length && (
+                  <span className="ml-2 text-[1rem] font-normal text-muted">· {online.length} online now</span>
+                )}
               </span>
               {run?.sentId && (
                 <span className="font-mono text-[1.05rem] font-bold text-good">

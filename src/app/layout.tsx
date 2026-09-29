@@ -10,6 +10,7 @@ const charis = Charis_SIL({ subsets: ["latin", "latin-ext"], weight: ["400"], va
 export const metadata: Metadata = {
   title: "End-to-End Encryption — Yusif Aliyev",
   description: "How E2EE works, why it exists, and why you should use it. A Technical English presentation.",
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

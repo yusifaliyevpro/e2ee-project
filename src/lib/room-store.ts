@@ -18,6 +18,7 @@ export interface RoomBackend {
   wrapFor(id: string, deviceId: string): Promise<Wrap | null>;
   ack(id: string, deviceId: string): Promise<void>;
   acks(id: string): Promise<string[]>;
+  hasAcked(id: string, deviceId: string): Promise<boolean>;
   setPoll(p: Poll | null): Promise<void>;
   poll(): Promise<Poll | null>;
   vote(pollId: string, deviceId: string, option: number): Promise<void>;
@@ -27,6 +28,8 @@ export interface RoomBackend {
   addReaction(r: Omit<StoredReaction, "seq">): Promise<void>;
   reactionSeq(): Promise<number>;
   reactionsSince(seq: number): Promise<StoredReaction[]>;
+  joining(): Promise<boolean>;
+  setJoining(open: boolean): Promise<void>;
   reset(): Promise<void>;
 }
 
@@ -41,6 +44,7 @@ type Mem = {
   reactions: StoredReaction[];
   rxSeq: number;
   lastAction: Map<string, number>;
+  joiningUntil: number;
 };
 
 function freshMem(): Mem {
@@ -55,8 +59,12 @@ function freshMem(): Mem {
     reactions: [],
     rxSeq: 0,
     lastAction: new Map(),
+    joiningUntil: 0,
   };
 }
+
+/** An opened room closes itself after this long, in case the presenter forgets (seconds) */
+const JOIN_TTL = 4 * 60 * 60;
 
 // Survives dev-server hot reloads
 const globalRoom = globalThis as typeof globalThis & { e2eeRoom?: Mem };
@@ -115,6 +123,9 @@ function memoryBackend(): RoomBackend {
     async acks(id) {
       return [...(mem().acks.get(id) ?? [])];
     },
+    async hasAcked(id, deviceId) {
+      return mem().acks.get(id)?.has(deviceId) ?? false;
+    },
     async setPoll(p) {
       mem().poll = p;
     },
@@ -147,9 +158,16 @@ function memoryBackend(): RoomBackend {
     async reactionsSince(seq) {
       return mem().reactions.filter((r) => r.seq > seq);
     },
+    async joining() {
+      return Date.now() < mem().joiningUntil;
+    },
+    async setJoining(open) {
+      mem().joiningUntil = open ? Date.now() + JOIN_TTL * 1000 : 0;
+    },
     async reset() {
-      // Keep the reaction counter so the presenter's cursor stays valid
-      globalRoom.e2eeRoom = { ...freshMem(), rxSeq: mem().rxSeq };
+      // Keep the reaction counter (presenter's cursor) and the join switch as they are
+      const { rxSeq, joiningUntil } = mem();
+      globalRoom.e2eeRoom = { ...freshMem(), rxSeq, joiningUntil };
     },
   };
 }
@@ -246,6 +264,9 @@ function redisBackend(redis: Redis): RoomBackend {
     async acks(id) {
       return (await redis.smembers(`${P}acks:${id}`)) ?? [];
     },
+    async hasAcked(id, deviceId) {
+      return (await redis.sismember(`${P}acks:${id}`, deviceId)) === 1;
+    },
     async setPoll(p) {
       if (p) await redis.set(`${P}poll`, JSON.stringify(p), { ex: TTL });
       else await redis.del(`${P}poll`);
@@ -284,6 +305,13 @@ function redisBackend(redis: Redis): RoomBackend {
         .map((v) => parse<StoredReaction>(v))
         .filter((r): r is StoredReaction => r !== null && r.seq > seq)
         .toSorted((a, b) => a.seq - b.seq);
+    },
+    async joining() {
+      return (await redis.get(`${P}joining`)) === "1";
+    },
+    async setJoining(open) {
+      if (open) await redis.set(`${P}joining`, "1", { ex: JOIN_TTL });
+      else await redis.del(`${P}joining`);
     },
     async reset() {
       // `rx:seq` survives so the presenter's reaction cursor stays valid
