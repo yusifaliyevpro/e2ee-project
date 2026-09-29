@@ -1,0 +1,16 @@
+saveExact: true
+engineStrict: true
+minimumReleaseAge: 1440
+minimumReleaseAgeExcludePrune: true
+trustPolicy: "no-downgrade"
+trustPolicyExcludePrune: true
+allowBuilds:
+  "@prisma/engines": true
+  msgpackr-extract: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - framer-motion@13.4.4
+  - motion-dom@13.4.4
+  - motion@13.4.4
