@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { isRecord } from "./guards";
 import type { Device, Poll, StoredMessage, StoredReaction, Wrap } from "./room-types";
 
 // Two backends: in-memory (single `next start` process / tunnel) and Upstash Redis (serverless, e.g. Vercel).
@@ -182,13 +183,15 @@ function hashToRecord(raw: unknown): Record<string, string> {
     for (let i = 0; i + 1 < raw.length; i += 2) out[String(raw[i])] = String(raw[i + 1]);
     return out;
   }
-  return raw && typeof raw === "object" ? (raw as Record<string, string>) : {};
+  return isRecord(raw) ? Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, String(v)])) : {};
 }
 
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- values are JSON this module wrote itself
 function parse<T>(raw: unknown): T | null {
   if (typeof raw !== "string") return null;
   try {
-    return JSON.parse(raw) as T;
+    const value: T = JSON.parse(raw);
+    return value;
   } catch {
     return null;
   }

@@ -11,7 +11,11 @@ export function createLocalStore<T>(key: string, fallback: T) {
     if (cache === undefined) {
       try {
         const raw = localStorage.getItem(key);
-        cache = raw === null ? fallback : (JSON.parse(raw) as T);
+        if (raw === null) cache = fallback;
+        else {
+          const parsed: T = JSON.parse(raw);
+          cache = parsed;
+        }
       } catch {
         cache = fallback;
       }

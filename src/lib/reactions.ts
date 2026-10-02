@@ -1,3 +1,5 @@
+import { isRecord } from "./guards";
+
 export const REACTIONS = ["❤️", "🔥", "😂", "😮", "👏", "🔐"] as const;
 
 export type Reaction = (typeof REACTIONS)[number];
@@ -11,9 +13,9 @@ export const MAX_PER_EMOJI = 12;
 export function parseBatch(json: string): [Reaction, number][] {
   try {
     const raw: unknown = JSON.parse(json);
-    if (!raw || typeof raw !== "object") return [];
+    if (!isRecord(raw)) return [];
     return REACTIONS.flatMap((r) => {
-      const n = (raw as Record<string, unknown>)[r];
+      const n = raw[r];
       return typeof n === "number" && n > 0 ? [[r, Math.min(MAX_PER_EMOJI, Math.floor(n))] as [Reaction, number]] : [];
     });
   } catch {

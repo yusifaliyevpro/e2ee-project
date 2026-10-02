@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { aliasFor } from "./aliases";
 import { SESSION_COOKIE, isValidSession } from "./auth";
 import { isB64 } from "./bytes";
+import { isRecord } from "./guards";
 import { room } from "./room-store";
 import type {
   DeliveredMessage,
@@ -34,7 +35,7 @@ export async function requirePresenter(request: NextRequest): Promise<Response |
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await request.json();
-    return body && typeof body === "object" ? (body as Record<string, unknown>) : null;
+    return isRecord(body) ? body : null;
   } catch {
     return null;
   }
@@ -256,11 +257,11 @@ export async function updatePoll(request: Request) {
     !Array.isArray(options) ||
     options.length < 2 ||
     options.length > 4 ||
-    !options.every((o) => typeof o === "string" && o.length <= 60)
+    !options.every((o): o is string => typeof o === "string" && o.length <= 60)
   ) {
     return json({ error: "bad poll" }, 400);
   }
-  const poll: Poll = { id: crypto.randomUUID(), question, options: options as string[], open: true };
+  const poll: Poll = { id: crypto.randomUUID(), question, options, open: true };
   await store.setPoll(poll);
   return json(poll);
 }
