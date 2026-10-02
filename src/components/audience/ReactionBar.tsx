@@ -33,8 +33,9 @@ export function ReactionBar({ deviceId, replyKey }: { deviceId: string; replyKey
       });
       if (res.status === 429) {
         // Too fast: fold the batch back in and try again shortly
-        for (const [emoji, n] of Object.entries(batch) as [Reaction, number][]) {
-          pending.current[emoji] = Math.min(MAX_PER_EMOJI, (pending.current[emoji] ?? 0) + n);
+        for (const emoji of REACTIONS) {
+          const n = batch[emoji];
+          if (n) pending.current[emoji] = Math.min(MAX_PER_EMOJI, (pending.current[emoji] ?? 0) + n);
         }
         timer.current ??= setTimeout(() => void flush(), FLUSH_MS);
       }

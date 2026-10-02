@@ -79,7 +79,7 @@ export function S09LiveDemo() {
       try {
         const res = await fetch("/api/room/send", { method: "POST", body: JSON.stringify(envelope) });
         if (!res.ok) throw new Error(`Server said ${res.status}`);
-        const { id } = (await res.json()) as { id: string };
+        const { id }: { id: string } = await res.json();
         setRun((r) => (r ? { ...r, sentId: id } : r));
         void refresh();
       } catch (e) {

@@ -40,7 +40,7 @@ function loadKeys(): { keys: KeyPair; id: string | null } {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
-      const s = JSON.parse(raw) as Stored;
+      const s: Stored = JSON.parse(raw);
       const secretKey = fromHex(s.sk);
       return { keys: { secretKey, publicKey: x25519.getPublicKey(secretKey) }, id: s.id };
     }
@@ -115,7 +115,7 @@ export function AudienceApp() {
         return false;
       }
       if (!res.ok) throw new Error(`join failed ${res.status}`);
-      const device = (await res.json()) as Device;
+      const device: Device = await res.json();
       idRef.current = device.id;
       registered.current = true;
       saveKeys(keys, device.id);
@@ -163,7 +163,7 @@ export function AudienceApp() {
         const params = new URLSearchParams({ id: idRef.current! });
         if (lastMsg.current) params.set("after", lastMsg.current);
         const res = await fetch(`/api/room/inbox?${params}`, { cache: "no-store" });
-        const data = (await res.json()) as InboxResponse;
+        const data: InboxResponse = await res.json();
         if (data.status === "unknown") {
           // Room was reset: re-join with the same key pair and id
           registered.current = false;

@@ -59,7 +59,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (!res.ok) throw new Error(String(res.status));
-      const next = (await res.json()) as PresenterState;
+      const next: PresenterState = await res.json();
       const seen = reactionCursor.current;
       if (seen === null || next.reactionSeq < seen) {
         // First poll, or the counter expired: start from "now"
